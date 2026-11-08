@@ -53,10 +53,12 @@ st.markdown(
 .pill-green  {background:rgba(46,204,113,.16); color:#1e9e57; border:1px solid rgba(46,204,113,.55);}
 .pill-yellow {background:rgba(241,196,15,.18); color:#b07d00; border:1px solid rgba(241,196,15,.6);}
 .pill-red    {background:rgba(231,76,60,.14);  color:#d0392b; border:1px solid rgba(231,76,60,.55);}
-.zone-wrap   {position:relative; margin:40px 6px 4px 6px;}
+.zone-wrap   {position:relative; margin:66px 6px 4px 6px;}
 .zone-bar    {height:18px; border-radius:9px;}
-.zone-marker {position:absolute; top:-36px; transform:translateX(-50%); font-weight:800;
-              font-size:.9rem; white-space:nowrap; text-align:center; line-height:1.1;}
+.zone-marker {position:absolute; top:-60px; transform:translateX(-50%); font-weight:800;
+              font-size:1.45rem; white-space:nowrap; text-align:center; line-height:1.15;}  /* 跟下面價格卡片的數字一樣大 */
+.zone-marker .arr {font-size:.9rem;}
+.zone-marker .lbl {font-size:.92rem; font-weight:600; margin-right:4px;}  /* 跟價格卡片的「合理價」標題一樣 */
 .zone-ticks  {position:relative; height:40px; margin:0 6px; font-size:.78rem; opacity:.8;}
 .zone-tick   {position:absolute; transform:translateX(-50%); text-align:center; white-space:nowrap; top:4px;}
 .price-card  {border-radius:12px; padding:14px 10px; text-align:center; margin-bottom:14px;}
@@ -1764,7 +1766,7 @@ with eval_col, st.container(border=True):
         zone_name = {"cheap": "便宜區", "fair_low": "合理偏低", "fair_high": "合理偏高", "expensive": "昂貴區"}[zone]
         st.markdown(f"""
 <div class="zone-wrap">
-  <div class="zone-marker" style="left:{pp}%">現在 {money(price)}<br>▼</div>
+  <div class="zone-marker" style="left:{pp}%"><span class="lbl">現在</span>{money(price)}<br><span class="arr">▼</span></div>
   <div class="zone-bar" style="background:linear-gradient(90deg,
        #2ecc71 0%, #2ecc71 {pc}%, #f1c40f {pc}%, #f1c40f {pe_}%, #e74c3c {pe_}%, #e74c3c 100%);"></div>
 </div>
