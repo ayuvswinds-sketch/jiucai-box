@@ -1826,11 +1826,15 @@ with st.container(border=True):
     pdi_all, mdi_all, adx_all = calc_dmi(ohlc)
     ma5 = close.rolling(5).mean()
     w = ohlc.iloc[-n_days:]
-    try:
-        chips = load_chips(code, market, [d.date() for d in w.index])
-    except DataError as e:
-        st.warning(f"籌碼資料暫時抓不到，先只顯示股價線型。（{e}）")
-        chips = pd.DataFrame(index=w.index, columns=["foreign", "trust", "margin"], dtype=float)
+    # 網頁版：籌碼按一下才下載，而且只抓近 1 個月（第一次要一天一天抓，很花時間）
+    chips_on = (not ON_CLOUD) or st.session_state.get(f"chips_on_{code}", False)
+    chip_days = w.index if not ON_CLOUD else w.index[-21:]
+    chips = pd.DataFrame(index=w.index, columns=["foreign", "trust", "margin"], dtype=float)
+    if chips_on:
+        try:
+            chips = load_chips(code, market, [d.date() for d in chip_days])
+        except DataError as e:
+            st.warning(f"籌碼資料暫時抓不到，先只顯示股價線型。（{e}）")
     chips = chips.reindex(w.index)
 
     x = [d.strftime("%Y/%m/%d") for d in w.index]  # 用文字當 X 軸，假日就不會留空白
@@ -1922,22 +1926,28 @@ with st.container(border=True):
             out.append(f"{sign}{v / 1e8:,.2f} 億元" if v >= 1e8 else f"{sign}{v / 1e4:,.0f} 萬元")
         return out
 
-    # ② 外資 ③ 投信
-    for col_name, nm in (("foreign", "外資"), ("trust", "投信")):
+    # ② 外資 ③ 投信（網頁版還沒按「載入籌碼」時，先放一個按鈕）
+    if not chips_on:
+        st.markdown("<div class='chart-t'>外資、投信、融資</div>", unsafe_allow_html=True)
+        st.button("載入籌碼（外資、投信、融資，近 1 個月）", key=f"chips_btn_{code}",
+                  on_click=lambda: st.session_state.update({f"chips_on_{code}": True}))
+        st.caption("籌碼要一天一天從交易所下載，網頁版第一次大約 1 分半；查過的日子會先存起來，查別檔會比較快。")
+    for col_name, nm in (("foreign", "外資"), ("trust", "投信")) if chips_on else ():
         v = chips[col_name]
         f = go.Figure(go.Bar(x=x, y=v, marker_color=bar_colors(v), name=nm, customdata=amt(v),
                              hovertemplate=nm + " %{y:+,.0f} 張<br>約 %{customdata}<extra></extra>"))
-        chart(f"{nm}買賣超（張）", f, 170, col_name)
+        chart(f"{nm}買賣超（張）" + ("　網頁版只顯示近 1 個月" if ON_CLOUD else ""), f, 170, col_name)
 
     # ④ 融資餘額
-    f = go.Figure(go.Scatter(x=x, y=chips["margin"], name="融資餘額", fill="tozeroy",
+    f = None if not chips_on else go.Figure(go.Scatter(x=x, y=chips["margin"], name="融資餘額", fill="tozeroy",
                              line=dict(color="#e76f51", width=1.6), fillcolor="rgba(231,111,81,.12)",
                              customdata=amt(chips["margin"]),
                              hovertemplate="融資 %{y:,.0f} 張<br>約 %{customdata}<extra></extra>"))
     m_ok = chips["margin"].dropna()
-    if len(m_ok):
-        f.update_yaxes(range=[m_ok.min() * 0.97, m_ok.max() * 1.03])
-    chart("融資餘額（張）", f, 170, "margin")
+    if f is not None:
+        if len(m_ok):
+            f.update_yaxes(range=[m_ok.min() * 0.97, m_ok.max() * 1.03])
+        chart("融資餘額（張）" + ("　網頁版只顯示近 1 個月" if ON_CLOUD else ""), f, 170, "margin")
 
     # ⑤ 成交量
     vol_col = [RED if c >= o else GREEN for o, c in zip(w["open"], w["close"])]
