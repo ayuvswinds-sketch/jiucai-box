@@ -1899,11 +1899,14 @@ with st.container(border=True):
 
     def chart(title, fig, height, key, legend=False):
         """畫一張小圖，下面接白話解讀"""
-        st.markdown(f"<div class='chart-t'>{title}</div>", unsafe_allow_html=True)
-        fig.update_layout(height=height, margin=dict(l=8, r=8, t=30 if legend else 6, b=8), hovermode="x unified",
-                          bargap=0.15, hoverdistance=40, showlegend=legend,
+        # 標題放進圖裡的最上面一排，跟右上角的縮放工具列同一高度；圖例放在標題下面，手機上才不會被工具列蓋住
+        top = 62 if legend else 38
+        fig.update_layout(height=height + top - (30 if legend else 6), margin=dict(l=8, r=8, t=top, b=8),
+                          title=dict(text=f"<b>{title}</b>", x=0, xanchor="left", xref="paper",
+                                     y=1, yref="container", yanchor="top", pad=dict(t=8), font=dict(size=15)),
+                          hovermode="x unified", bargap=0.15, hoverdistance=40, showlegend=legend,
                           hoverlabel=dict(font_size=17, bgcolor="white", bordercolor="#111111", font_color="#111111"),
-                          legend=dict(orientation="h", y=1.02, yanchor="bottom", x=0, font=dict(size=11)))
+                          legend=dict(orientation="h", y=1.0, yanchor="bottom", x=0, font=dict(size=11)))
         fig.update_xaxes(type="category", rangeslider_visible=False, nticks=8, showgrid=False)
         fig.update_yaxes(**GRID)
         st.plotly_chart(fig, key=f"chart_{key}")
@@ -1950,7 +1953,7 @@ with st.container(border=True):
         v = chips[col_name]
         f = go.Figure(go.Bar(x=x, y=v, marker_color=bar_colors(v), name=nm, customdata=amt(v),
                              hovertemplate=nm + " %{y:+,.0f} 張<br>約 %{customdata}<extra></extra>"))
-        chart(f"{nm}買賣超（張）" + ("　網頁版只顯示近 1 個月" if ON_CLOUD else ""), f, 170, col_name)
+        chart(f"{nm}買賣超（張）", f, 170, col_name)
 
     # ④ 融資餘額
     f = None if not chips_on else go.Figure(go.Scatter(x=x, y=chips["margin"], name="融資餘額", fill="tozeroy",
@@ -1961,7 +1964,7 @@ with st.container(border=True):
     if f is not None:
         if len(m_ok):
             f.update_yaxes(range=[m_ok.min() * 0.97, m_ok.max() * 1.03])
-        chart("融資餘額（張）" + ("　網頁版只顯示近 1 個月" if ON_CLOUD else ""), f, 170, "margin")
+        chart("融資餘額（張）", f, 170, "margin")
 
     # ⑤ 成交量
     vol_col = [RED if c >= o else GREEN for o, c in zip(w["open"], w["close"])]
@@ -2037,9 +2040,11 @@ with fin_l, st.container(border=True):
         for i, (nm, col) in enumerate((("毛利率", "#3f7d20"), ("營益率", "#2563eb"), ("淨利率", "#f59e0b"))):
             fig_m.add_trace(go.Scatter(x=x, y=[sqm[k][i] for k in keys], name=nm, mode="lines+markers",
                                        line=dict(color=col, width=2), hovertemplate=nm + " %{y:.1f}%<extra></extra>"))
-        fig_m.update_layout(height=190, margin=dict(l=8, r=8, t=6, b=4), hovermode="x unified",
-                            hoverlabel=dict(font_size=17, bgcolor="white", bordercolor="#111111", font_color="#111111"), 
-                            legend=dict(orientation="h", y=1.15, x=0), yaxis=dict(ticksuffix="%", **GRID),
+        fig_m.update_layout(height=230, margin=dict(l=8, r=8, t=62, b=4), hovermode="x unified",
+                            title=dict(text="<b>近 8 季走勢</b>", x=0, xanchor="left", xref="paper",
+                                       y=1, yref="container", yanchor="top", pad=dict(t=8), font=dict(size=15)),
+                            hoverlabel=dict(font_size=17, bgcolor="white", bordercolor="#111111", font_color="#111111"),
+                            legend=dict(orientation="h", y=1.0, yanchor="bottom", x=0), yaxis=dict(ticksuffix="%", **GRID),
                             xaxis=dict(type="category", showgrid=False))
         st.plotly_chart(fig_m)
         # ---- 真實總結：跟上一季比、跟去年同一季比，再看本業和業外 ----
