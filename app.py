@@ -26,7 +26,6 @@ import lxml.html
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import requests
 import streamlit as st
 from PIL import Image
@@ -85,15 +84,9 @@ table.pick tr:hover td {background:rgba(63,125,32,.08);}
 .news .d {opacity:.6; margin-right:6px;}
 .news .t {display:inline-block; font-size:.75rem; padding:1px 7px; border-radius:9px; margin-right:6px;
           background:rgba(63,125,32,.12); color:#3f7d20;}
-.news .t-up   {background:rgba(37,99,235,.12); color:#1d4ed8;}
-.news .t-news {background:rgba(245,158,11,.15); color:#b45309;}
-.news .src {opacity:.55; font-size:.8rem; margin-left:4px;}
-.news .why {opacity:.7; font-size:.82rem; margin-top:2px;}
 .chart-t   {font-weight:700; font-size:1rem; margin-top:10px;}
 .tk-box summary {list-style:none; cursor:pointer;}
 .tk-box summary::-webkit-details-marker {display:none;}
-.ticker {overflow:hidden; white-space:nowrap; border-left:4px solid #3f7d20; border-radius:8px;
-         background:rgba(63,125,32,.06); padding:14px 0; font-size:1rem; line-height:1.6;}
 .tk-list {padding:4px 0 0 0;}
 /* 跑馬燈填滿查詢欄下面的空位：左右兩欄一樣高，跑馬燈自動長到底 */
 div[data-testid="stHorizontalBlock"]:has(.st-key-ticker_box) {align-items: stretch !important;}
@@ -106,7 +99,6 @@ div[data-testid="stColumn"] > div[data-testid="stVerticalBlock"] > .st-key-ticke
   {flex: 1 1 auto; display: flex; flex-direction: column; height: 100%;}
 .vticker {flex: 1 1 auto; display:flex; flex-direction:column; min-height:160px; height:100%;
           border-left:4px solid #3f7d20; border-radius:8px; background:rgba(63,125,32,.06); padding:10px 14px; margin-bottom:6px;}
-.vt-title {font-weight:700; font-size:1rem; margin-bottom:6px;}
 .vt-win {flex:1 1 auto; overflow:hidden; position:relative; min-height:120px;}
 .vt-in {position:absolute; left:0; right:0; top:0; animation:vtick linear infinite;}
 .vticker:hover .vt-in {animation-play-state:paused;}
@@ -115,18 +107,9 @@ div[data-testid="stColumn"] > div[data-testid="stVerticalBlock"] > .st-key-ticke
 .vt-h {font-weight:700; font-size:.95rem;}
 .vt-b {font-size:.9rem; line-height:1.65; opacity:.85;}
 .tk-note {font-size:.82rem; opacity:.6; margin-top:6px;}
-.ticker-in {display:inline-block; padding-left:100%; animation:tick linear infinite;}
-.ticker:hover .ticker-in {animation-play-state:paused;}
-@keyframes tick {from {transform:translateX(0);} to {transform:translateX(-100%);}}
 .tk-item {border-left:4px solid #3f7d20; padding:6px 12px; margin:8px 0; background:rgba(63,125,32,.05); border-radius:6px;}
 .tk-h {font-weight:700; font-size:1rem;}
 .tk-b {font-size:.95rem; line-height:1.75;}
-.mev {border-left:4px solid #64748b; padding:5px 10px; margin-bottom:8px; background:rgba(0,0,0,.025); border-radius:6px;}
-.mev .mh {font-size:.92rem; font-weight:600; line-height:1.5;}
-.mev .md {display:inline-block; min-width:92px; opacity:.75; font-weight:500;}
-.mev .ml {font-size:.78rem; margin-left:6px; font-weight:600;}
-.mev .mi, .mev .ms {font-size:.82rem; opacity:.75; line-height:1.55;}
-.mtip {font-size:.85rem; line-height:1.65; opacity:.85; margin-top:4px;}
 .theme {display:inline-block; font-size:.82rem; padding:2px 10px; margin:0 6px 6px 0; border-radius:999px;
         background:rgba(37,99,235,.10); color:#1d4ed8; border:1px solid rgba(37,99,235,.25);}
 /* 左邊（三率＋名詞小辭典）和右邊（財報與股利）拉成一樣高：名詞小辭典自動往下延伸 */
@@ -828,16 +811,6 @@ def log_query(symbol, name):
         json.dump(rows, f, ensure_ascii=False)
 
 
-def top_queries(days=14, n=10):
-    recent = [r for r in _read_history() if time.time() - r["t"] < days * 86400]
-    if not recent:
-        return pd.DataFrame(columns=["代號", "名稱", "查詢次數"])
-    df = pd.DataFrame(recent)
-    g = df.groupby("symbol").agg(名稱=("name", "last"), 查詢次數=("t", "size"), 最近=("t", "max"))
-    g = g.sort_values(["查詢次數", "最近"], ascending=False).head(n).reset_index()
-    return g.rename(columns={"symbol": "代號"})[["代號", "名稱", "查詢次數"]]
-
-
 # ============================================================
 # 6. 依代碼下載所有資料（附進度條）
 # ============================================================
@@ -1167,7 +1140,6 @@ if "q" not in st.session_state:
     # 網頁版一打開先不查，等使用者輸入（省時間）；自己電腦上照舊先顯示台積電
     st.session_state.q = "" if ON_CLOUD else "2330"
     st.session_state.setdefault("mkt_hint", {})["2330"] = "sii"
-st.session_state.setdefault("tbl_ver", 0)
 
 
 def _plain(code):
@@ -1187,14 +1159,6 @@ def set_q(code):
     st.session_state.q = _plain(code)
 
 
-def pick_row(table_key, df_key):
-    """點排行榜的某一列 → 直接查那一檔"""
-    rows = st.session_state[f"{table_key}_{st.session_state.tbl_ver}"].selection.rows
-    if rows:
-        st.session_state.q = _plain(st.session_state[df_key].iloc[rows[0]]["代號"])
-        st.session_state.tbl_ver += 1  # 換一個新表格，清掉選取狀態
-
-
 # 從排行榜點連結進來（網址後面帶 ?q=代號）
 if "q" in st.query_params:
     st.session_state.q = _plain(st.query_params["q"])
@@ -1211,14 +1175,6 @@ def link_table(df):
         body += f"<tr>{tds}</tr>"
     st.markdown(f'<table class="pick"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>',
                 unsafe_allow_html=True)
-
-
-def show_pick_table(df, table_key):
-    df = df.assign(代號=df["代號"].map(_plain))  # 畫面上只顯示數字代號
-    st.session_state[f"df_{table_key}"] = df
-    st.dataframe(df, hide_index=True, height=35 * (len(df) + 1) + 3,
-                 key=f"{table_key}_{st.session_state.tbl_ver}", selection_mode="single-row",
-                 on_select=lambda: pick_row(table_key, f"df_{table_key}"))
 
 
 top_l, top_r = st.columns([1.75, 1], gap="large")
@@ -1290,41 +1246,29 @@ def render_history():
 
 
 # ============================================================
-# 未來 30 天總經時間軸（AI 上網查證）
+# AI 小功能（主要客戶、名詞解釋）；沒有金鑰時自動不顯示
 # ============================================================
-# 依序試這幾個 AI 版本：第一個額度用完或不能用，就自動換下一個。以後 Google 換新版本，只要改這裡
-# 免費方案的「上網查證」只開放給 Gemini 2 系列，所以上網查時先試 Gemini 2；不上網時用額度比較多的輕量版
-SEARCH_MODELS = ["gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-2.5-flash", "gemini-3.8-flash"]
-PLAIN_MODELS = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite", "gemini-3.8-flash"]
-GEMINI_MODELS = SEARCH_MODELS
+# 依序試這幾個 AI 版本（免費方案）；以後 Google 換新版本，只要改這一行
+GEMINI_MODELS = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite", "gemini-3.8-flash"]
 
 
 @st.cache_resource
-def _macro_cooldown():
+def _ai_cooldown():
     """記住上次失敗的時間（所有分頁共用），避免一直重試、把免費額度越用越少"""
     return {"until": 0.0, "msg": "", "detail": ""}
 
 
-def ask_gemini(api_key, prompt, allow_no_search=False, search=True):
-    """
-    問 Gemini（會上網查證）。第一個版本額度用完或不能用，就自動換下一個。
-    allow_no_search=True：上網查證的額度都用完時，改用 AI 本身知道的資料再試一次。
-    """
+def ask_gemini(api_key, prompt):
+    """問 Gemini（免費方案、不上網）。第一個版本額度用完或不能用，就自動換下一個"""
     from google import genai
-    from google.genai import types
 
     client = genai.Client(api_key=api_key)
-    search_cfg = types.GenerateContentConfig(tools=[types.Tool(google_search=types.GoogleSearch())])
-    tries = [(m, search_cfg) for m in SEARCH_MODELS] if search else []
-    if allow_no_search or not search:
-        tries += [(m, None) for m in PLAIN_MODELS]
     errors = []
-    for model, cfg in tries:
+    for model in GEMINI_MODELS:
         try:
-            resp = client.models.generate_content(model=model, contents=prompt, config=cfg)
-            return resp.text or ""
+            return client.models.generate_content(model=model, contents=prompt).text or ""
         except Exception as e:
-            errors.append(f"{model}（{'上網查' if cfg else '不上網'}）：{str(e)[:900]}")
+            errors.append(f"{model}：{str(e)[:900]}")
             if any(k in str(e) for k in ("429", "RESOURCE_EXHAUSTED", "404", "NOT_FOUND")):
                 continue
             raise RuntimeError("\n".join(errors)) from e
@@ -1333,7 +1277,7 @@ def ask_gemini(api_key, prompt, allow_no_search=False, search=True):
 
 def _ai_failed(e):
     """AI 失敗時記下來，30 分鐘內所有 AI 功能都先不重試，避免浪費免費額度"""
-    cd = _macro_cooldown()
+    cd = _ai_cooldown()
     cd["detail"] = str(e)
     if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
         cd["msg"] = "AI 的免費額度暫時用完了。每分鐘、每天都有次數上限，每天下午 4 點（台灣時間）重新計算。"
@@ -1353,54 +1297,11 @@ def company_customers(code, name, api_key, ver=3):  # 改了問法就把 ver 加
 3. 不確定就回傳空清單，不要猜。
 4. 只輸出 JSON，前後不要有其他文字：{{"customers": ["客戶1", "客戶2"]}}
 """
-    text = ask_gemini(api_key, prompt, search=False)
-    m = re.search(r"\{.*\}", text, re.S)
-    if not m:
-        raise ValueError("AI 這次沒有回傳正確的格式")
-    return [str(c).strip() for c in json.loads(m.group(0)).get("customers", []) if str(c).strip()][:6]
-
-
-@st.cache_data(ttl=6 * 3600, show_spinner=False)  # 同一檔股票 6 小時只問一次
-def company_news_ai(code, name, today_iso, api_key, ver=1):
-    """請 AI 上網找：接下來要發生的事（法說會、股東會等），和近 1 個月的重要市場消息"""
-    prompt = f"""
-今天是 {today_iso}（台灣時間）。請用 Google 搜尋查證，整理台灣上市櫃公司「{name}」（股票代號 {code}）的：
-A. 接下來 60 天內「已經確定日期」的事件，例如法說會、股東會、除權息、財報公布、新產品發表，最多 4 則。
-B. 近 30 天內可能影響股價的重要消息，例如跟大廠合作、拿到訂單、擴廠、產品進度、法規或產業變化、分析師調整看法，最多 6 則。
-
-規則：
-1. 只列可以查證的消息，不要猜、不要編。查不到就給空清單。
-2. 用白話文，不要表情符號。標題 30 字以內。
-3. why 用一句話說明這件事可能讓股價往哪個方向動、為什麼。
-4. source 寫消息來源的媒體或網站名稱，例如 經濟日報、鉅亨網、公司官網。
-5. 只輸出 JSON，前後不要有其他文字：
-{{
-  "upcoming": [{{"date": "YYYY-MM-DD", "title": "", "why": "", "source": ""}}],
-  "recent":   [{{"date": "YYYY-MM-DD", "title": "", "why": "", "source": ""}}]
-}}
-"""
     text = ask_gemini(api_key, prompt)
     m = re.search(r"\{.*\}", text, re.S)
     if not m:
         raise ValueError("AI 這次沒有回傳正確的格式")
-    data = json.loads(m.group(0))
-    today = pd.Timestamp(today_iso)
-
-    def clean(lst, keep):
-        out = []
-        for e in lst or []:
-            try:
-                d = pd.Timestamp(e.get("date", ""))
-            except Exception:
-                continue
-            if keep(d) and str(e.get("title", "")).strip():
-                out.append({"d": d, "title": str(e["title"]).strip(), "why": str(e.get("why", "")).strip(),
-                            "source": str(e.get("source", "")).strip()})
-        return out
-
-    up = sorted(clean(data.get("upcoming"), lambda d: today <= d <= today + pd.Timedelta(days=62)), key=lambda e: e["d"])
-    rc = sorted(clean(data.get("recent"), lambda d: today - pd.Timedelta(days=31) <= d <= today), key=lambda e: e["d"], reverse=True)
-    return {"upcoming": up[:4], "recent": rc[:6]}
+    return [str(c).strip() for c in json.loads(m.group(0)).get("customers", []) if str(c).strip()][:6]
 
 
 @st.cache_data(ttl=30 * 86400, show_spinner=False)
@@ -1410,7 +1311,7 @@ def glossary_ai(term, api_key, ver=1):
 只輸出 JSON，前後不要有其他文字：
 {{"term": "名詞", "zh": "中文全名（沒有就空字串）", "desc": "1~2 句白話說明", "cos": ["台股代表公司名稱，最多 4 家，沒有就空清單"]}}
 """
-    text = ask_gemini(api_key, prompt, search=False)
+    text = ask_gemini(api_key, prompt)
     m = re.search(r"\{.*\}", text, re.S)
     if not m:
         raise ValueError("AI 這次沒有回傳正確的格式")
@@ -1424,89 +1325,6 @@ def _gemini_key():
         return st.secrets["GEMINI_API_KEY"]
     except Exception:
         return os.environ.get("GEMINI_API_KEY", "")
-
-
-@st.cache_data(ttl=60 * 60 * 6, show_spinner=False)  # 6 小時內只問一次，換股票也不會重問
-def macro_calendar(today_iso, api_key):
-    prompt = f"""
-今天是 {today_iso}（台灣時間）。請用 Google 搜尋查證，整理出從今天起 30 天內，
-全球與台美股市最需關注的 4~7 個「總體經濟事件」或「政治大事件」
-（例如：Fed FOMC 利率決議、美國 CPI/PCE 通膨、美國非農就業、台灣央行理監事會、選舉、OPEC 會議、輝達等科技巨頭財報）。
-
-規則：
-1. 只列出已經公布日期的事件，日期一定要查證，不要自己猜。
-2. 日期、時間都換算成台灣時間。
-3. 用白話文，不要專業術語，不要表情符號。
-4. 只輸出下面格式的 JSON，前後不要有其他文字：
-{{
-  "events": [
-    {{
-      "date": "YYYY-MM-DD",
-      "time": "台灣時間幾點，例如 21:30，不確定就寫空字串",
-      "short": "6 個字以內的短名稱，例如 美國CPI",
-      "name": "完整事件名稱",
-      "level": "高 或 中 或 低（對台股可能的影響大小）",
-      "impact": "可能影響哪些族群、為什麼，一句話",
-      "strategy": "建議怎麼因應，一句話"
-    }}
-  ],
-  "tips": [
-    "成長期衝刺的人，該怎麼根據這些事件調整，一句話",
-    "高股息防守的人，該怎麼根據這些事件調整，一句話"
-  ]
-}}
-"""
-    text = ask_gemini(api_key, prompt)
-    m = re.search(r"\{.*\}", text, re.S)
-    if not m:
-        raise ValueError("AI 這次沒有回傳正確的格式")
-    data = json.loads(m.group(0))
-
-    start = pd.Timestamp(today_iso)
-    events = []
-    for e in data.get("events", []):
-        try:
-            d = pd.Timestamp(e["date"])
-        except Exception:
-            continue
-        if start <= d <= start + pd.Timedelta(days=31):
-            e["d"] = d
-            events.append(e)
-    events.sort(key=lambda e: e["d"])
-    if not events:
-        raise ValueError("AI 這次沒有找到未來 30 天內的事件")
-    return {"events": events, "tips": data.get("tips", [])[:2]}
-
-
-def macro_timeline(events, today, days=31):
-    level_col = {"高": "#e5383b", "中": "#f59e0b", "低": "#64748b"}
-    fig = go.Figure()
-    end = today + pd.Timedelta(days=days)
-    # 中間那條橫線
-    fig.add_shape(type="line", x0=today, x1=end, y0=0, y1=0, line=dict(color="#111111", width=2))
-    # 今天
-    fig.add_trace(go.Scatter(x=[today], y=[0], mode="markers+text", text=["今天"], textposition="bottom center",
-                             marker=dict(size=10, color="#2563eb"), hoverinfo="skip", showlegend=False))
-    heights = [1.2, -1.2, 2.2, -2.2]  # 上下交錯，日期靠太近時字才不會疊在一起
-    for i, e in enumerate(events):
-        y = heights[i % 4]
-        col = level_col.get(str(e.get("level", "")).strip(), "#64748b")
-        fig.add_shape(type="line", x0=e["d"], x1=e["d"], y0=0, y1=y * 0.82, line=dict(color=col, width=1.5))
-        when = e["d"].strftime("%m/%d") + (f" {e['time']}" if e.get("time") else "")
-        fig.add_trace(go.Scatter(
-            x=[e["d"]], y=[0], mode="markers", showlegend=False,
-            marker=dict(size=14, color=col, line=dict(color="white", width=2)),
-            hovertemplate=f"<b>{e.get('name', '')}</b><br>{when}<br>影響：{e.get('impact', '')}<extra></extra>"))
-        fig.add_annotation(x=e["d"], y=y, text=f"<b>{e.get('short', '')}</b><br>{when}", showarrow=False,
-                           font=dict(size=12, color=col), align="center")
-    fig.update_layout(
-        height=330, margin=dict(l=10, r=10, t=10, b=10), plot_bgcolor="rgba(0,0,0,0)",
-        hoverlabel=dict(font_size=17, bgcolor="white", bordercolor="#111111", font_color="#111111"), 
-        yaxis=dict(visible=False, range=[-2.9, 2.9], fixedrange=True),
-        xaxis=dict(range=[today - pd.Timedelta(days=1), end], tickformat="%m/%d", dtick=7 * 24 * 3600 * 1000,
-                   showgrid=False, fixedrange=True),
-    )
-    return fig
 
 
 # ---------- 總經大事：官方已公布的日期（不用 AI，也不用金鑰）----------
@@ -1586,40 +1404,6 @@ def macro_events(today, days=45):
     return out
 
 
-MACRO_TIPS = [
-    "成長期衝刺的人：Fed 利率決議和 CPI 公布前後，科技股波動最大，不要在公布前一天重押，等結果出來再加碼。",
-    "高股息防守的人：這些事件對高股息股影響比較小，照原本計畫定期定額就好；股價因消息大跌時，反而是撿便宜的機會。",
-]
-
-
-def render_macro():
-    with macro_slot, st.container(border=True):
-        st.markdown("#### 總經大事")
-        today = pd.Timestamp(date.today())
-        events = macro_events(today)
-        if not events:
-            st.caption("未來 45 天內沒有已公布日期的總經大事。如果一直空白，可能是要補新一年的日期了。")
-            return
-        left, right = st.columns([1.15, 1], gap="medium")  # 左邊時間軸，右邊日期清單和說明
-        with left:
-            st.plotly_chart(macro_timeline(events, today, days=46), key="macro_tl")
-            st.caption("紅：影響大　橙：中等　灰：小。時間都是台灣時間，滑鼠移到圓點上可以看說明。")
-        with right:
-            lvl_col = {"高": "#e5383b", "中": "#f59e0b", "低": "#64748b"}
-            html = ""
-            for e in events:
-                c = lvl_col.get(e["level"], "#64748b")
-                html += (f'<div class="mev" style="border-left-color:{c}">'
-                         f'<div class="mh"><span class="md">{e["d"]:%m/%d} {e["time"]}</span>{e["name"]}'
-                         f'<span class="ml" style="color:{c}">影響{e["level"]}</span></div>'
-                         f'<div class="mi">{e["impact"]}</div><div class="ms">建議：{e["strategy"]}</div></div>')
-            st.markdown(html, unsafe_allow_html=True)
-            for t in MACRO_TIPS:
-                st.markdown(f"<div class='mtip'>{t}</div>", unsafe_allow_html=True)
-        st.caption("日期來源：Fed 官網、美國勞工統計局、台灣中央銀行；僅供參考，不是投資建議。")
-
-
-
 def stop_here():
     render_history()
     render_etf()
@@ -1627,7 +1411,6 @@ def stop_here():
 
 
 st.markdown("<div style='height:22px'></div>", unsafe_allow_html=True)  # 上方查詢區和公司名稱之間留白
-
 
 
 try:
@@ -2219,7 +2002,7 @@ with fin_l, st.container(border=True, key="gloss_box"):
         if not hits:
             st.caption(f"小辭典裡還沒有「{gq.strip()}」。")
             key = _gemini_key()
-            cd = _macro_cooldown()
+            cd = _ai_cooldown()
             if key and time.time() >= cd["until"]:
                 if st.button(f"請 AI 解釋「{gq.strip()}」", key="gloss_ai_btn") or st.session_state.get("gloss_ai_for") == gq.strip():
                     st.session_state.gloss_ai_for = gq.strip()
@@ -2243,7 +2026,7 @@ def render_customers():
     key = _gemini_key()
     if not key:
         return
-    cd = _macro_cooldown()
+    cd = _ai_cooldown()
     wait_msg = "主要客戶：AI 額度暫時用完，{t} 之後重新整理頁面就會補上"
     if time.time() < cd["until"]:
         cust_slot.markdown(f"<div class='biz muted'>{wait_msg.format(t=datetime.fromtimestamp(cd['until']).strftime('%H:%M'))}</div>",
