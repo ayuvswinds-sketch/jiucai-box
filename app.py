@@ -1928,7 +1928,7 @@ with st.container(border=True):
 
     # ② 外資 ③ 投信（網頁版還沒按「載入籌碼」時，先放一個按鈕）
     if not chips_on:
-        st.markdown("<div class='chart-t'>外資、投信、融資</div>", unsafe_allow_html=True)
+        st.markdown("<div class='chart-t' style='margin:18px 0 12px 0'>外資、投信、融資</div>", unsafe_allow_html=True)
         st.button("載入籌碼（外資、投信、融資，近 1 個月）", key=f"chips_btn_{code}",
                   on_click=lambda: st.session_state.update({f"chips_on_{code}": True}))
         st.caption("籌碼要一天一天從交易所下載，網頁版第一次大約 1 分半；查過的日子會先存起來，查別檔會比較快。")
@@ -2028,19 +2028,64 @@ with fin_l, st.container(border=True):
                             legend=dict(orientation="h", y=1.15, x=0), yaxis=dict(ticksuffix="%", **GRID),
                             xaxis=dict(type="category", showgrid=False))
         st.plotly_chart(fig_m)
-        trend_txt = []
-        for i, nm in enumerate(("毛利率", "營益率", "淨利率")):
-            if len(keys) >= 4:
-                chg = sqm[keys[-1]][i] - sqm[keys[-4]][i]
-                trend_txt.append(f"{nm}{'上升' if chg > 0.5 else '下滑' if chg < -0.5 else '持平'}")
-        if trend_txt:
-            ups = sum("上升" in t for t in trend_txt)
-            downs = sum("下滑" in t for t in trend_txt)
-            verdict = ("三率一起往上，俗稱「三率三升」，代表公司越來越會賺錢。" if ups == 3 else
-                       "三率一起往下，俗稱「三率三降」，賺錢能力在變弱，要留意。" if downs == 3 else
-                       "三率都差不多，獲利能力很穩定。" if ups == 0 and downs == 0 else
-                       "三率有升有降，獲利能力沒有明顯方向。")
-            st.markdown(f"**跟三季前比**：{'、'.join(trend_txt)}。{verdict}")
+        # ---- 真實總結：跟上一季比、跟去年同一季比，再看本業和業外 ----
+        names = ("毛利率", "營益率", "淨利率")
+        TH = 0.3  # 變動小於 0.3 個百分點當作持平
+
+        def word(d):
+            return "持平" if abs(d) < TH else (f"升 {d:.1f}" if d > 0 else f"降 {abs(d):.1f}")
+
+        def judge(diffs):
+            up = sum(d >= TH for d in diffs)
+            down = sum(d <= -TH for d in diffs)
+            return "三升" if up == 3 else "三降" if down == 3 else "持平" if up == 0 and down == 0 else "有升有降"
+
+        lines = []
+        qoq = [cur[i] - prv[i] for i in range(3)] if all(ok(x) for x in prv) else None
+        ly_key = (keys[-1][0] - 1, keys[-1][1])
+        ly = sqm.get(ly_key)
+        yoy = [cur[i] - ly[i] for i in range(3)] if ly and all(ok(x) for x in ly) else None
+        if qoq:
+            lines.append("**跟上一季比**：" + "、".join(f"{n}{word(d)}" for n, d in zip(names, qoq))
+                         + "（單位：個百分點）")
+        if yoy:
+            lines.append(f"**跟去年同一季（{ly_key[0] - 1911} 年 Q{ly_key[1]}）比**："
+                         + "、".join(f"{n}{word(d)}" for n, d in zip(names, yoy)))
+
+        # 結論
+        jq = judge(qoq) if qoq else None
+        jy = judge(yoy) if yoy else None
+        if jq == "三升" and jy == "三升":
+            concl = "跟上一季、跟去年同期比都是三率一起上升，是真正的「三率三升」，公司越來越會賺錢。"
+        elif jq == "三降" and jy == "三降":
+            concl = "跟上一季、跟去年同期比都是三率一起下降，是「三率三降」，賺錢能力在變弱，要留意。"
+        elif qoq and qoq[0] >= TH and qoq[1] >= TH and qoq[2] <= -TH:
+            concl = ("毛利率和營益率都上升，代表本業變好；但淨利率反而下降，"
+                     "差別通常來自業外（例如匯兌、投資收益或損失）或稅負，不是本業出問題。")
+            if prv[2] > prv[1]:
+                concl += (f"上一季淨利率 {prv[2]:.1f}% 比營益率 {prv[1]:.1f}% 還高，"
+                          "代表上一季有一筆比較大的業外收入，這一季回到正常，所以看起來像下滑。")
+            concl += "所以這一季不算「三率三升」。"
+        elif qoq and qoq[0] <= -TH and qoq[1] <= -TH and qoq[2] >= TH:
+            concl = ("毛利率和營益率都下降，本業在變弱；淨利率上升主要靠業外收入撐著，"
+                     "這種成長不一定能持續，要留意。")
+        elif jq == "三升":
+            concl = "跟上一季比三率一起上升，但跟去年同期比還沒有全面變好，算是「季增」的三率三升，還要再觀察。"
+        elif jy == "三升":
+            concl = "跟去年同期比三率都變好，但這一季比上一季有退步，長期方向還不錯，短期稍微放緩。"
+        else:
+            concl = "三率有升有降，獲利能力沒有明顯一致的方向。"
+        lines.append("**總結**：" + concl)
+
+        # 近一年平均 vs 前一年平均
+        if len(keys) >= 8:
+            r4 = [sum(sqm[k][i] for k in keys[-4:]) / 4 for i in range(3)]
+            p4 = [sum(sqm[k][i] for k in keys[-8:-4]) / 4 for i in range(3)]
+            lines.append("**近一年平均 vs 前一年平均**：" + "、".join(
+                f"{n} {a:.1f}%（前一年 {b:.1f}%）" for n, a, b in zip(names, r4, p4)))
+        for ln in lines:
+            ln_html = re.sub(r"[*][*](.+?)[*][*]", r"<b>\1</b>", ln)
+            st.markdown(f"<div class='chart-tip'>{ln_html}</div>", unsafe_allow_html=True)
         st.caption("來源：公開資訊觀測站 營益分析彙總表（已換算成單季數字）")
 
 with fin_r, st.container(border=True, key="fin_box"):
