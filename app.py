@@ -1260,19 +1260,31 @@ def render_etf():
 
 
 def render_history():
-    """查詢欄下面的小方塊：14 天內查過的股票，點一下就查"""
-    h = top_queries(n=10)
-    if len(h):
-        items = list(zip(h["代號"], h["名稱"]))
-    else:  # 還沒有紀錄時，先放幾個常見的
+    """查詢欄下面的小方塊：查過的股票，最近查的排最左邊，依序往右排，點一下就查"""
+    days = 14
+    seen, items = set(), []
+    for r in sorted(_read_history(), key=lambda r: r["t"], reverse=True):  # 最近查的在前面
+        if time.time() - r["t"] < days * 86400 and r["symbol"] not in seen:
+            seen.add(r["symbol"])
+            items.append((r["symbol"], r["name"]))
+    items = items[:10]
+    if not items:  # 還沒有紀錄時，先放幾個常見的
         items = [("2330.TW", "台積電"), ("8069.TWO", "元太"), ("00878.TW", "國泰永續高股息")]
     with hist_slot:
-        st.caption("這次查過" if ON_CLOUD else "14 天內查過")
-        per_row = 5
-        for i in range(0, len(items), per_row):
-            cols = st.columns(per_row)
-            for col, (sym, nm) in zip(cols, items[i:i + per_row]):
-                col.button(nm, key=f"hist_{sym}", on_click=set_q, args=(sym,))
+        st.caption("這次查過" if ON_CLOUD else "14 天內查過（最近查的在最左邊）")
+        try:  # 新版 Streamlit：按鈕一個接一個往右排，排滿自動換行
+            row = st.container(horizontal=True, gap="small")
+        except TypeError:  # 舊版沒有這個功能，就用欄位排
+            row = None
+        if row is not None:
+            for sym, nm in items:
+                row.button(nm, key=f"hist_{sym}", on_click=set_q, args=(sym,))
+        else:
+            per_row = 5
+            for i in range(0, len(items), per_row):
+                cols = st.columns(per_row, gap="small")
+                for col, (sym, nm) in zip(cols, items[i:i + per_row]):
+                    col.button(nm, key=f"hist_{sym}", on_click=set_q, args=(sym,), use_container_width=True)
 
 
 # ============================================================
@@ -2023,7 +2035,7 @@ with fin_l, st.container(border=True):
         for i, (nm, col) in enumerate((("毛利率", "#3f7d20"), ("營益率", "#2563eb"), ("淨利率", "#f59e0b"))):
             fig_m.add_trace(go.Scatter(x=x, y=[sqm[k][i] for k in keys], name=nm, mode="lines+markers",
                                        line=dict(color=col, width=2), hovertemplate=nm + " %{y:.1f}%<extra></extra>"))
-        fig_m.update_layout(height=260, margin=dict(l=8, r=8, t=10, b=8), hovermode="x unified",
+        fig_m.update_layout(height=190, margin=dict(l=8, r=8, t=6, b=4), hovermode="x unified",
                             hoverlabel=dict(font_size=17, bgcolor="white", bordercolor="#111111", font_color="#111111"), 
                             legend=dict(orientation="h", y=1.15, x=0), yaxis=dict(ticksuffix="%", **GRID),
                             xaxis=dict(type="category", showgrid=False))
@@ -2213,8 +2225,6 @@ with fin_l, st.container(border=True, key="gloss_box"):
                         st.caption(_ai_failed(e))
             elif key:
                 st.caption(f"AI 額度暫時用完，{datetime.fromtimestamp(cd['until']).strftime('%H:%M')} 之後可以再請 AI 解釋。")
-    else:
-        st.caption("常用：" + "、".join(g[0] for g in GLOSSARY[:9]) + "…")
 
 
 def render_customers():
