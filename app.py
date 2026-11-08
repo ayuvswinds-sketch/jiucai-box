@@ -1162,7 +1162,8 @@ def build_summary(price, v, zone, yld, trend, rsi_now, ma20_now, is_etf):
 # 9. 畫面：標題、搜尋、右上角排行榜
 # ============================================================
 if "q" not in st.session_state:
-    st.session_state.q = "2330"
+    # 網頁版一打開先不查，等使用者輸入（省時間）；自己電腦上照舊先顯示台積電
+    st.session_state.q = "" if ON_CLOUD else "2330"
     st.session_state.setdefault("mkt_hint", {})["2330"] = "sii"
 st.session_state.setdefault("tbl_ver", 0)
 
@@ -1241,7 +1242,11 @@ with top_l:
 
 with top_r, st.container(border=True):
     st.markdown("##### 近 30 天 ETF 成交量前 10")
-    if True:
+    etf_slot = st.container()  # 排行最後才下載，才不會拖慢整頁
+
+
+def render_etf():
+    with etf_slot:
         try:
             with st.spinner("統計近 30 天 ETF 成交量（第一次約 1 分鐘）…"):
                 top_etf = etf_top10(TODAY)
@@ -1603,6 +1608,7 @@ def render_macro():
 
 def stop_here():
     render_history()
+    render_etf()
     st.stop()
 
 
@@ -1612,6 +1618,9 @@ st.markdown("<div style='height:22px'></div>", unsafe_allow_html=True)  # 上方
 
 try:
     q_text = (st.session_state.q or "").strip()
+    if not q_text:
+        st.info("在上面輸入股票代號或名稱（例如 2330、台積電），按 Enter 就會開始分析。")
+        stop_here()
     if q_text and not re.fullmatch(r"\d{4,6}[A-Za-z]?(\.TWO?)?", q_text, re.I):  # 打的是名稱，不是代號
         with st.spinner("用名稱尋找股票中…"):
             hits = find_by_name(q_text)
@@ -2338,6 +2347,7 @@ def render_ticker():
 
 render_ticker()
 render_customers()
+render_etf()
 
 with st.expander("這些價格是怎麼算出來的？"):
     st.markdown("""
